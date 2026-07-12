@@ -611,32 +611,51 @@ def read_key():
     old = termios.tcgetattr(fd)
     try:
         tty.setraw(fd)
-        ch = sys.stdin.read(1)
-        if ch == '\x1b':
-            if select.select([fd], [], [], 0.02)[0]:
-                seq = sys.stdin.read(1)
-                if seq == '[':
-                    code = sys.stdin.read(1)
-                    if code in '0123456789':
-                        rest = ''
-                        while select.select([fd], [], [], 0.02)[0]:
-                            c = sys.stdin.read(1)
-                            rest += c
-                            if c == '~':
-                                break
-                        return {'5': 'PGUP', '6': 'PGDN', '1': 'HOME', '4': 'END',
-                                '3': 'DELETE'}.get(code, '')
-                    return {'A': 'UP', 'B': 'DOWN', 'C': 'RIGHT', 'D': 'LEFT',
-                            'H': 'HOME', 'F': 'END'}.get(code, '')
-                return 'ESC'
-            return 'ESC'
-        if ch in ('\r', '\n'):
-            return 'ENTER'
-        if ch in ('\x7f', '\x08'):
-            return 'BACKSPACE'
-        if ch == '\x03':
+        data = os.read(fd, 1)
+        if not data:
             raise KeyboardInterrupt
-        return ch
+        b = data[0]
+        if b == 0x03:
+            raise KeyboardInterrupt
+        if b in (0x0d, 0x0a):
+            return 'ENTER'
+        if b in (0x7f, 0x08):
+            return 'BACKSPACE'
+        if b == 0x1b:
+            if not select.select([fd], [], [], 0.05)[0]:
+                return 'ESC'
+            nxt = os.read(fd, 1)
+            if nxt not in (b'[', b'O'):
+                return 'ESC'
+            seq = b''
+            while select.select([fd], [], [], 0.05)[0]:
+                c = os.read(fd, 1)
+                if not c:
+                    break
+                seq += c
+                if 0x40 <= c[0] <= 0x7e:
+                    break
+            if seq.endswith(b'~'):
+                num = seq[:-1].split(b';')[0]
+                return {b'1': 'HOME', b'3': 'DELETE', b'4': 'END', b'5': 'PGUP',
+                        b'6': 'PGDN', b'7': 'HOME', b'8': 'END'}.get(num, '')
+            final = seq[-1:] if seq else b''
+            return {b'A': 'UP', b'B': 'DOWN', b'C': 'RIGHT', b'D': 'LEFT',
+                    b'H': 'HOME', b'F': 'END'}.get(final, '')
+        extra = 0
+        if b >= 0xf0:
+            extra = 3
+        elif b >= 0xe0:
+            extra = 2
+        elif b >= 0xc0:
+            extra = 1
+        while extra > 0 and select.select([fd], [], [], 0.05)[0]:
+            more = os.read(fd, 1)
+            if not more:
+                break
+            data += more
+            extra -= 1
+        return data.decode('utf-8', 'ignore')
     finally:
         termios.tcsetattr(fd, termios.TCSADRAIN, old)
 

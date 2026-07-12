@@ -35,8 +35,13 @@ class Style:
     FG_CYAN = '\033[96m'
     FG_WHITE = '\033[97m'
     FG_GREY = '\033[90m'
+    FG_BLACK = '\033[30m'
 
+    BG_RED = '\033[41m'
+    BG_GREEN = '\033[42m'
+    BG_YELLOW = '\033[43m'
     BG_BLUE = '\033[44m'
+    BG_MAGENTA = '\033[45m'
     BG_CYAN = '\033[46m'
     BG_DARK = '\033[100m'
 
@@ -299,6 +304,55 @@ def wrap_ansi(text, width, indent=''):
     return lines
 
 
+def wrap_code(text, width):
+    width = max(1, width)
+    cells = []
+    ctrl = ''
+    for kind, val in tokenize_ansi(text):
+        if kind == 'e':
+            ctrl += val
+        else:
+            cells.append((val, ctrl))
+            ctrl = ''
+    if ctrl:
+        cells.append(('', ctrl))
+
+    lines = []
+    sgr = ''
+    line = ''
+    line_w = 0
+
+    def apply(control):
+        nonlocal sgr
+        for m in ANSI_TOKEN.finditer(control):
+            tok = m.group(0)
+            if tok == Style.RESET:
+                sgr = ''
+            elif not tok.startswith('\033]8'):
+                sgr += tok
+
+    def emit(cont):
+        nonlocal line, line_w
+        lines.append((sgr if cont else '') + line + (Style.RESET if sgr else ''))
+        line = ''
+        line_w = 0
+
+    cont = False
+    for ch, cc in cells:
+        apply(cc)
+        if ch == '':
+            line += cc
+            continue
+        cw = char_width(ch)
+        if line_w + cw > width and line_w > 0:
+            emit(cont)
+            cont = True
+        line += cc + ch
+        line_w += cw
+    emit(cont)
+    return lines
+
+
 def highlight_code_line(line, lang):
     regex = COMPILED_RULES.get(lang, COMPILED_RULES['generic'])
 
@@ -355,8 +409,58 @@ def render_url_link(text, url, index):
     return f'{label}{badge(index, Style.FG_BLUE)}'
 
 
+FILE_TYPES = [
+    ('IMG', Style.BG_MAGENTA, {'png', 'jpg', 'jpeg', 'gif', 'bmp', 'svg', 'webp', 'ico', 'tiff', 'tif', 'heic', 'avif'}),
+    ('PDF', Style.BG_RED, {'pdf'}),
+    ('VIDEO', Style.BG_BLUE, {'mp4', 'mov', 'avi', 'mkv', 'webm', 'm4v', 'flv', 'wmv'}),
+    ('AUDIO', Style.BG_CYAN, {'mp3', 'wav', 'flac', 'ogg', 'm4a', 'aac', 'opus'}),
+    ('ARCHIVE', Style.BG_YELLOW, {'zip', 'tar', 'gz', 'tgz', 'rar', '7z', 'bz2', 'xz', 'zst'}),
+    ('SHEET', Style.BG_GREEN, {'xls', 'xlsx', 'csv', 'ods'}),
+    ('DOC', Style.BG_BLUE, {'doc', 'docx', 'odt', 'rtf', 'pages'}),
+    ('SLIDES', Style.BG_RED, {'ppt', 'pptx', 'odp', 'key'}),
+    ('CODE', Style.BG_GREEN, {'py', 'js', 'ts', 'jsx', 'tsx', 'c', 'h', 'cpp', 'cc', 'java',
+                              'go', 'rs', 'rb', 'php', 'sh', 'lua', 'sql', 'json', 'yaml', 'yml', 'toml', 'xml', 'html', 'css'}),
+    ('TEXT', Style.BG_DARK, {'txt', 'log', 'ini', 'cfg', 'conf'}),
+]
+
+
+def file_ext(name):
+    stem = re.split(r'[?#]', name, 1)[0]
+    return Path(stem).suffix.lower().lstrip('.')
+
+
+def classify_file(name):
+    ext = file_ext(name)
+    if not ext or ext == 'md':
+        return None
+    for label, bg, exts in FILE_TYPES:
+        if ext in exts:
+            return label, bg
+    return (ext.upper() if len(ext) <= 4 else 'FILE'), Style.BG_DARK
+
+
+def render_file_chip(name, index=None, type_source=None):
+    info = classify_file(type_source or name)
+    label, bg = info if info else ('FILE', Style.BG_DARK)
+    base = Path(re.split(r'[?#]', name, 1)[0]).name or name
+    chip = f'{bg}{Style.FG_BLACK}{Style.BOLD} {label} {Style.RESET}'
+    tail = badge(index, Style.FG_YELLOW) if index else ''
+    return f'{chip} {Style.DIM}{base}{Style.RESET}{tail}'
+
+
+def add_file_link(found_links, name, current_dir):
+    target = name if os.path.isabs(name) else str((current_dir / name))
+    found_links.append(('file', Path(name).name or name, Path(target)))
+    return len(found_links)
+
+
+def is_external(url):
+    return bool(re.match(r'^(https?|ftp|mailto|tel):', url)) or url.startswith('//') or url.startswith('www.')
+
+
 LINK_RE = re.compile(
-    r'!\[(?P<img>[^\]]*)\]\((?P<imgurl>[^)]*)\)'
+    r'!\[\[(?P<emb>[^\]|#]+)(?:#[^\]|]+)?(?:\|[^\]]+)?\]\]'
+    r'|!\[(?P<img>[^\]]*)\]\((?P<imgurl>[^)]*)\)'
     r'|\[\[(?P<wl>[^\]|#]+)(?:#[^\]|]+)?(?:\|(?P<alias>[^\]]+))?\]\]'
     r'|\[(?P<txt>[^\]]+)\]\((?P<url>[^)]*)\)'
 )
@@ -364,16 +468,25 @@ LINK_RE = re.compile(
 
 def parse_links(text, found_links, current_dir):
     def repl(m):
+        if m.group('emb') is not None:
+            return render_file_chip(m.group('emb').strip())
         if m.group('img') is not None:
-            alt = m.group('img') or 'изображение'
-            return f'{Style.FG_MAGENTA}{ICONS["img"]} {alt}{Style.RESET}'
+            name = m.group('imgurl') or m.group('img') or 'image'
+            return render_file_chip(name)
         if m.group('wl') is not None:
             target = m.group('wl').strip()
             alias = (m.group('alias') or target).strip()
+            if classify_file(target):
+                idx = add_file_link(found_links, target, current_dir)
+                display = alias if m.group('alias') else target
+                return render_file_chip(display, idx, type_source=target)
             idx = add_note_link(found_links, target, current_dir)
             return render_note_link(alias, idx)
         text_part = m.group('txt')
         url = m.group('url') or ''
+        if url and not is_external(url) and classify_file(url):
+            idx = add_file_link(found_links, url, current_dir)
+            return render_file_chip(text_part, idx, type_source=url)
         idx = add_url_link(found_links, url)
         return render_url_link(text_part, url, idx)
 
@@ -500,24 +613,17 @@ def render_markdown_to_lines(filepath, found_links, current_dir):
             fence = stripped[:3]
             lang = stripped[3:].strip().lower()
             code_lang = lang if lang in COMPILED_RULES else 'generic'
-            label = f' {ICONS["arrow"]} {lang or "код"} '
-            fill = max(0, body - visible_len(label) - 2)
-            raw(f'  {Style.FG_GREY}{BOX["tl"]}{label}{BOX["h"] * fill}{BOX["tr"]}{Style.RESET}')
+            label = f' {lang or "code"} '
+            head = f'{BOX["tl"]}{BOX["h"]}{label}'
+            fill = max(0, width - visible_len(head) - 1)
+            raw(f'{Style.DIM}{Style.FG_GREY}{head}{BOX["h"] * fill}{BOX["tr"]}{Style.RESET}')
             i += 1
-            ln = 1
             while i < n and not src[i].strip().startswith(fence):
-                gutter = f'{Style.FG_GREY}{BOX["v"]} {Style.DIM}{ln:>3}{Style.RESET} {Style.FG_GREY}{BOX["v"]}{Style.RESET} '
-                cont = f'{Style.FG_GREY}{BOX["v"]}     {BOX["v"]}{Style.RESET} '
                 content = highlight_code_line(src[i].replace('\t', '    '), code_lang)
-                pieces = wrap_ansi(content, body - 8, '')
-                if not pieces:
-                    pieces = ['']
-                out.append('  ' + gutter + pieces[0])
-                for extra in pieces[1:]:
-                    out.append('  ' + cont + extra)
-                ln += 1
+                for piece in wrap_code(content, width):
+                    raw(piece)
                 i += 1
-            raw(f'  {Style.FG_GREY}{BOX["bl"]}{BOX["h"] * (body - 1)}{Style.RESET}')
+            raw(f'{Style.DIM}{Style.FG_GREY}{BOX["bl"]}{BOX["h"] * max(0, width - 2)}{BOX["br"]}{Style.RESET}')
             i += 1
             continue
 
@@ -918,6 +1024,17 @@ def run_pager(filepath, current_dir):
                     status = f'{Style.FG_RED}Нет ссылки с номером {number}{Style.RESET}'
 
 
+def open_with_os(path):
+    if os.name == 'nt':
+        os.startfile(str(path))
+    elif sys.platform == 'darwin':
+        subprocess.Popen(['open', str(path)],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    else:
+        subprocess.Popen(['xdg-open', str(path)],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
 def follow_link(link, current_dir):
     kind, label, target = link
     if kind == 'url':
@@ -927,6 +1044,19 @@ def follow_link(link, current_dir):
             print(f'{Style.FG_GREEN}Открываю в браузере:{Style.RESET} {target}')
         except Exception:
             print(f'{Style.FG_YELLOW}Ссылка:{Style.RESET} {target}')
+        print(f'\n{Style.DIM}Нажмите любую клавишу…{Style.RESET}')
+        read_key()
+        return
+    if kind == 'file':
+        clear_screen()
+        if target.is_file():
+            try:
+                open_with_os(target)
+                print(f'{Style.FG_GREEN}Открываю файл:{Style.RESET} {target}')
+            except Exception as e:
+                print(f'{Style.FG_YELLOW}Файл:{Style.RESET} {target}\n{Style.DIM}{e}{Style.RESET}')
+        else:
+            print(f'{Style.FG_RED}Файл не найден:{Style.RESET} {target}')
         print(f'\n{Style.DIM}Нажмите любую клавишу…{Style.RESET}')
         read_key()
         return

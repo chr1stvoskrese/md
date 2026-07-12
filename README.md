@@ -31,9 +31,13 @@ Requires only Python 3.8+. No `pip install`.
   tables, horizontal rules, YAML front-matter, width-aware line wrapping.
 - **Inline formatting** — bold, italic, strikethrough, `code`, highlight `==text==`.
 - **Syntax-highlighted code** — Python, Bash, JavaScript/TypeScript, JSON and a
-  generic fallback; framed blocks with line numbers.
+  generic fallback; framed, copy-clean blocks — no line numbers or gutter, so a
+  terminal selection copies exactly the code.
 - **Link navigation** — wiki-links `[[Note]]` and `[[Note|alias]]`, plus regular
   `[text](url)`. Every link gets a number — press it to follow.
+- **File chips** — images and attachments (`![img](pic.png)`, `[[report.pdf]]`,
+  `[file](archive.zip)`) render as a tidy type badge instead of a broken link;
+  press the number to open the file in the system default app.
 - **Instant paging** — one keypress, no Enter: arrows, `PgUp`/`PgDn`,
   `Home`/`End`, vim keys `j`/`k`/`g`/`G`.
 - **Search** — `/` over text, `n`/`N` between matches.
@@ -88,6 +92,9 @@ order. Pressing the number follows it:
 - **Alias** `[[Note|visible text]]` shows the text and follows the file.
 - **External link** `[text](https://…)` opens in the browser; in modern
   terminals it's also directly clickable (OSC 8).
+- **File / attachment** `[[report.pdf]]`, `[file](data.zip)` — a colored type
+  badge (`IMG`, `PDF`, `ARCHIVE`, …); the number opens it in the default app.
+  Embedded images `![alt](pic.png)` and `![[pic.png]]` show the badge inline.
 
 ---
 

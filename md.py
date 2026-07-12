@@ -3,6 +3,7 @@ import sys
 import re
 import shutil
 import subprocess
+import unicodedata
 import webbrowser
 from pathlib import Path
 
@@ -147,8 +148,42 @@ def strip_ansi(text):
     return ANSI_TOKEN.sub('', text)
 
 
+def char_width(ch):
+    if unicodedata.combining(ch) or unicodedata.category(ch) in ('Cf', 'Mn', 'Me'):
+        return 0
+    if unicodedata.east_asian_width(ch) in ('W', 'F'):
+        return 2
+    return 1
+
+
+def display_width(text):
+    return sum(char_width(ch) for ch in strip_ansi(text))
+
+
 def visible_len(text):
-    return len(strip_ansi(text))
+    return display_width(text)
+
+
+def clip_ansi(text, max_width):
+    if display_width(text) <= max_width:
+        return text
+    out = ''
+    used = 0
+    open_style = False
+    for kind, val in tokenize_ansi(text):
+        if kind == 'e':
+            out += val
+            if not val.startswith('\033]8'):
+                open_style = open_style or val != Style.RESET
+            continue
+        w = char_width(val)
+        if used + w > max_width:
+            break
+        out += val
+        used += w
+    if open_style:
+        out += Style.RESET
+    return out
 
 
 def tokenize_ansi(text):
@@ -169,6 +204,7 @@ def tokenize_ansi(text):
 def wrap_ansi(text, width, indent=''):
     text = text.replace('\t', '    ')
     width = max(1, width)
+    indent_w = display_width(indent)
     cells = []
     ctrl = ''
     for kind, val in tokenize_ansi(text):
@@ -214,13 +250,16 @@ def wrap_ansi(text, width, indent=''):
         line_w = 0
         first = False
 
+    def limit():
+        return width if first else max(1, width - indent_w)
+
     i = 0
     n = len(cells)
     while i < n:
         ch, cc = cells[i]
         if ch == ' ':
             apply(cc)
-            if 0 < line_w < width:
+            if 0 < line_w < limit():
                 line += cc + ' '
                 line_w += 1
             else:
@@ -231,21 +270,22 @@ def wrap_ansi(text, width, indent=''):
         word_w = 0
         while j < n and cells[j][0] != ' ':
             if cells[j][0] != '':
-                word_w += 1
+                word_w += char_width(cells[j][0])
             j += 1
-        if line_w > 0 and line_w + word_w > width:
+        if line_w > 0 and line_w + word_w > limit():
             emit()
-        if word_w > width and line_w == 0:
+        if word_w > limit() and line_w == 0:
             for k in range(i, j):
                 cch, ccc = cells[k]
                 apply(ccc)
                 if cch == '':
                     line += ccc
                     continue
-                if line_w >= width:
+                cw = char_width(cch)
+                if line_w + cw > limit():
                     emit()
                 line += ccc + cch
-                line_w += 1
+                line_w += cw
             i = j
             continue
         for k in range(i, j):
@@ -253,7 +293,7 @@ def wrap_ansi(text, width, indent=''):
             apply(ccc)
             line += ccc + cch
             if cch != '':
-                line_w += 1
+                line_w += char_width(cch)
         i = j
     emit()
     return lines
@@ -379,7 +419,7 @@ def render_table(rows, width, out):
     total = sum(widths) + 3 * cols + 1
     if total > width:
         avail = max(cols, width - 3 * cols - 1)
-        base = max(3, avail // cols)
+        base = max(1, avail // cols)
         widths = [min(w, base) for w in widths]
 
     def hline(left, mid, right):
@@ -417,8 +457,8 @@ def render_markdown_to_lines(filepath, found_links, current_dir):
     except Exception as e:
         return [f'{Style.FG_RED}Ошибка чтения файла: {e}{Style.RESET}']
 
-    width = max(20, shutil.get_terminal_size().columns)
-    body = max(20, width - 2)
+    width = max(1, shutil.get_terminal_size().columns)
+    body = max(1, width - 2)
     out = ['']
 
     def add(text, indent=''):
@@ -495,7 +535,7 @@ def render_markdown_to_lines(filepath, found_links, current_dir):
             table_out = []
             render_table(rows, body, table_out)
             for t in table_out:
-                out.append('  ' + t)
+                out.append('  ' + clip_ansi(t, body))
             continue
 
         h = re.match(r'^(#{1,6})\s+(.*)', line)
@@ -504,13 +544,15 @@ def render_markdown_to_lines(filepath, found_links, current_dir):
             title = parse_inline(h.group(2).rstrip(' #'), found_links, current_dir)
             out.append('')
             if level == 1:
-                plain = visible_len(title)
-                pad = max(1, (body - plain - 2) // 2)
-                bar = BOX['rule']
-                tail = max(0, body - plain - pad - 2)
-                raw(f'  {Style.FG_BLUE}{bar * body}{Style.RESET}')
-                raw(f'  {Style.BG_BLUE}{Style.FG_WHITE}{Style.BOLD}{" " * pad} {title} {" " * tail}{Style.RESET}')
-                raw(f'  {Style.FG_BLUE}{bar * body}{Style.RESET}')
+                inner = max(1, body - 2)
+                raw(f'  {Style.FG_BLUE}{BOX["rule"] * body}{Style.RESET}')
+                for seg in wrap_ansi(title, inner):
+                    segw = visible_len(seg)
+                    pad = max(0, (inner - segw) // 2)
+                    tail = max(0, inner - segw - pad)
+                    raw(f'  {Style.BG_BLUE}{Style.FG_WHITE}{Style.BOLD} '
+                        f'{" " * pad}{seg}{" " * tail} {Style.RESET}')
+                raw(f'  {Style.FG_BLUE}{BOX["rule"] * body}{Style.RESET}')
             elif level == 2:
                 add(f'{Style.FG_CYAN}{Style.BOLD}{title}{Style.RESET}')
                 raw(f'  {Style.FG_CYAN}{BOX["rule"] * body}{Style.RESET}')
@@ -578,7 +620,7 @@ def render_markdown_to_lines(filepath, found_links, current_dir):
 
     out.append('')
     raw(f'  {Style.DIM}{BOX["thin"] * body}{Style.RESET}')
-    return out
+    return [clip_ansi(l, width) for l in out]
 
 
 def read_key():
@@ -767,10 +809,13 @@ def run_pager(filepath, current_dir):
 
         clear_screen()
 
-        title = f' {ICONS["file"]} {filepath.name} '
         pos_pct = int(((top + page) / total) * 100) if total else 100
         pos_pct = min(100, pos_pct)
         right = f' {pos_pct}% '
+        avail = max(0, width - visible_len(right))
+        title = f' {ICONS["file"]} {filepath.name} '
+        if visible_len(title) > avail:
+            title = clip_ansi(title, max(0, avail - 1)) + '…'
         fill = max(0, width - visible_len(title) - visible_len(right))
         print(f'{Style.BG_DARK}{Style.FG_WHITE}{Style.BOLD}{title}{Style.RESET}'
               f'{Style.BG_DARK}{" " * fill}{Style.RESET}'
@@ -799,6 +844,7 @@ def run_pager(filepath, current_dir):
                     f'{Style.FG_CYAN}e{Style.RESET} правка   '
                     f'{Style.FG_CYAN}?{Style.RESET} помощь   '
                     f'{Style.FG_CYAN}q{Style.RESET} выход')
+        hint = clip_ansi(hint, width)
         pad = max(0, width - visible_len(hint))
         print(f'{Style.BG_DARK}{Style.FG_WHITE}{hint}{" " * pad}{Style.RESET}', end='')
         sys.stdout.flush()
@@ -907,9 +953,11 @@ def browse_directory(start_path):
         width = term.columns
 
         header = f' {ICONS["dir"]} {current.name or current} '
+        if visible_len(header) > width:
+            header = clip_ansi(header, max(0, width - 1)) + '…'
         fill = max(0, width - visible_len(header))
         print(f'{Style.BG_DARK}{Style.FG_WHITE}{Style.BOLD}{header}{" " * fill}{Style.RESET}')
-        print(f'{Style.DIM}{current}{Style.RESET}')
+        print(f'{Style.DIM}{clip_ansi(str(current), width)}{Style.RESET}')
         print(f'{Style.FG_GREY}{BOX["thin"] * width}{Style.RESET}')
 
         items = []
@@ -941,7 +989,7 @@ def browse_directory(start_path):
                 line = f'{pointer}{Style.REVERSE}{Style.BOLD} {strip_ansi(text)} {Style.RESET}'
             else:
                 line = f'{pointer}{text}'
-            print(line)
+            print(clip_ansi(line, width))
 
         for _ in range(view - (min(offset + view, len(entries)) - offset)):
             print('')
@@ -951,6 +999,7 @@ def browse_directory(start_path):
                 f'{Style.FG_CYAN}Enter{Style.RESET} открыть   '
                 f'{Style.FG_CYAN}← / Backspace{Style.RESET} назад   '
                 f'{Style.FG_CYAN}q{Style.RESET} выход')
+        hint = clip_ansi(hint, width)
         pad = max(0, width - visible_len(hint))
         print(f'{Style.BG_DARK}{Style.FG_WHITE}{hint}{" " * pad}{Style.RESET}', end='')
         sys.stdout.flush()

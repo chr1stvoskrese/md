@@ -1,121 +1,119 @@
-<div align="center">
+<p align="center">
+  <a href="README.md"><img alt="English" src="https://img.shields.io/badge/English-0969da?style=for-the-badge&logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2MCAzMCI%2bPGNsaXBQYXRoIGlkPSJhIj48cGF0aCBkPSJNMCAwdjMwaDYwVjB6Ii8%2bPC9jbGlwUGF0aD48cGF0aCBkPSJNMCAwdjMwaDYwVjB6IiBmaWxsPSIjMDEyMTY5Ii8%2bPHBhdGggZD0iTTAgMGw2MCAzMG0wLTMwTDAgMzAiIHN0cm9rZT0iI2ZmZiIgc3Ryb2tlLXdpZHRoPSI2Ii8%2bPHBhdGggZD0iTTAgMGw2MCAzMG0wLTMwTDAgMzAiIGNsaXAtcGF0aD0idXJsKCNhKSIgc3Ryb2tlPSIjQzgxMDJFIiBzdHJva2Utd2lkdGg9IjQiLz48cGF0aCBkPSJNMzAgMHYzME0wIDE1aDYwIiBzdHJva2U9IiNmZmYiIHN0cm9rZS13aWR0aD0iMTAiLz48cGF0aCBkPSJNMzAgMHYzME0wIDE1aDYwIiBzdHJva2U9IiNDODEwMkUiIHN0cm9rZS13aWR0aD0iNiIvPjwvc3ZnPgo%3d"></a>
+  <a href="README_RU.md"><img alt="Русский" src="https://img.shields.io/badge/%D0%A0%D1%83%D1%81%D1%81%D0%BA%D0%B8%D0%B9-555c66?style=for-the-badge&logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA5IDYiPjxwYXRoIGZpbGw9IiNmZmYiIGQ9Ik0wIDBoOXYySDB6Ii8%2bPHBhdGggZmlsbD0iIzAwMzlBNiIgZD0iTTAgMmg5djJIMHoiLz48cGF0aCBmaWxsPSIjRDUyQjFFIiBkPSJNMCA0aDl2MkgweiIvPjwvc3ZnPgo%3d"></a>
+</p>
 
-# md
+<h1 align="center">md</h1>
 
-**Читалка Markdown для терминала.**
+<p align="center">
+  <strong>Markdown reader for the terminal.</strong>
+</p>
 
-Один файл. Чистый Python. Ноль зависимостей.
+<p align="center">
+  One file · Pure Python · Zero dependencies
+</p>
 
-</div>
+---
 
 ```bash
-python md.py README.md      # открыть файл
-python md.py ~/заметки      # открыть папку заметок
-python md.py                # текущая папка
+python md.py README.md      # open a file
+python md.py ~/notes        # open a folder of notes
+python md.py                # current folder
 ```
 
-Требуется только Python 3.8+. Никаких `pip install`.
+Requires only Python 3.8+. No `pip install`.
 
 ---
 
-## Возможности
+## Features
 
-- **Полный рендер Markdown** — заголовки, списки, чек-боксы, цитаты, таблицы,
-  горизонтальные линии, YAML front-matter, перенос строк по ширине терминала.
-- **Инлайн-форматирование** — жирный, курсив, зачёркнутый, `код`, выделение `==текст==`.
-- **Код с подсветкой** — Python, Bash, JavaScript/TypeScript, JSON и generic-фолбэк;
-  блоки в рамке с номерами строк.
-- **Переходы по ссылкам** — вики-ссылки `[[Заметка]]` и `[[Заметка|алиас]]`,
-  обычные `[текст](url)`. Каждая ссылка получает номер — нажмите его, чтобы перейти.
-- **Мгновенное листание** — одна клавиша без Enter: стрелки, `PgUp`/`PgDn`,
-  `Home`/`End`, vim-клавиши `j`/`k`/`g`/`G`.
-- **Поиск** — `/` по тексту, `n`/`N` между совпадениями.
-- **Браузер заметок** — навигация по папкам стрелками, `Enter` открывает.
-- **Правка на месте** — `e` открывает файл в `$EDITOR` (либо `nano`/`vi`/`notepad`).
-- **Совместимость** — автоопределение Unicode и OSC 8-гиперссылок,
-  ASCII-фолбэк для старых консолей; Linux, macOS, Windows.
-
----
-
-## Управление
-
-### Просмотр файла
-
-| Клавиши             | Действие                            |
-|---------------------|-------------------------------------|
-| `↓` `j` `Enter`     | строка вниз                         |
-| `↑` `k`             | строка вверх                        |
-| `Пробел` `PgDn` `f` | страница вниз                       |
-| `b` `PgUp`          | страница вверх                      |
-| `g` `Home`          | в начало                            |
-| `G` `End`           | в конец                             |
-| `1`–`9`             | перейти по ссылке с этим номером    |
-| `/`                 | поиск по тексту                     |
-| `n` / `N`           | следующее / предыдущее совпадение   |
-| `e`                 | редактировать файл                  |
-| `r`                 | обновить                            |
-| `?` `h`             | справка                             |
-| `q` `Esc`           | назад / выход                       |
-
-### Браузер заметок
-
-| Клавиши         | Действие               |
-|-----------------|------------------------|
-| `↑` `↓`         | выбор пункта           |
-| `Enter` `→`     | открыть файл или папку |
-| `←` `Backspace` | на уровень вверх       |
-| `q` `Esc`       | выход                  |
-
-Русская раскладка работает на тех же клавишах: `й` = `q`, `у` = `e` и так далее.
+- **Full Markdown rendering** — headings, lists, checkboxes, blockquotes,
+  tables, horizontal rules, YAML front-matter, width-aware line wrapping.
+- **Inline formatting** — bold, italic, strikethrough, `code`, highlight `==text==`.
+- **Syntax-highlighted code** — Python, Bash, JavaScript/TypeScript, JSON and a
+  generic fallback; framed blocks with line numbers.
+- **Link navigation** — wiki-links `[[Note]]` and `[[Note|alias]]`, plus regular
+  `[text](url)`. Every link gets a number — press it to follow.
+- **Instant paging** — one keypress, no Enter: arrows, `PgUp`/`PgDn`,
+  `Home`/`End`, vim keys `j`/`k`/`g`/`G`.
+- **Search** — `/` over text, `n`/`N` between matches.
+- **Note browser** — arrow-key folder navigation, `Enter` opens.
+- **Edit in place** — `e` opens the file in `$EDITOR` (or `nano`/`vi`/`notepad`).
+- **Compatibility** — auto-detects Unicode and OSC 8 hyperlinks, ASCII fallback
+  for legacy consoles; Linux, macOS, Windows.
 
 ---
 
-## Ссылки
+## Controls
 
-Каждая ссылка в документе помечается номером `[1]`, `[2]`, … в порядке чтения.
-Нажатие номера выполняет переход:
+### File view
 
-- **Вики-ссылка** `[[Заметка]]` открывает файл `Заметка.md` — сначала рядом
-  с текущим файлом, затем рекурсивно по всей открытой папке.
-  Если заметки не существует, будет предложено создать её.
-- **Алиас** `[[Заметка|видимый текст]]` показывает текст, переход идёт по файлу.
-- **Внешняя ссылка** `[текст](https://…)` открывается в браузере;
-  в современных терминалах она также кликабельна напрямую (OSC 8).
+| Keys                | Action                          |
+|---------------------|---------------------------------|
+| `↓` `j` `Enter`     | line down                       |
+| `↑` `k`             | line up                         |
+| `Space` `PgDn` `f`  | page down                       |
+| `b` `PgUp`          | page up                         |
+| `g` `Home`          | to start                        |
+| `G` `End`           | to end                          |
+| `1`–`9`             | follow the link with that number|
+| `/`                 | search text                     |
+| `n` / `N`           | next / previous match           |
+| `e`                 | edit file                       |
+| `r`                 | reload                          |
+| `?` `h`             | help                            |
+| `q` `Esc`           | back / quit                     |
+
+### Note browser
+
+| Keys            | Action              |
+|-----------------|---------------------|
+| `↑` `↓`         | select item         |
+| `Enter` `→`     | open file or folder |
+| `←` `Backspace` | go up one level     |
+| `q` `Esc`       | quit                |
+
+The Russian keyboard layout works on the same keys: `й` = `q`, `у` = `e`, and so on.
 
 ---
 
-## Пример
+## Links
+
+Every link in the document is tagged with a number `[1]`, `[2]`, … in reading
+order. Pressing the number follows it:
+
+- **Wiki-link** `[[Note]]` opens `Note.md` — first next to the current file,
+  then recursively across the opened folder. If the note doesn't exist, you'll
+  be offered to create it.
+- **Alias** `[[Note|visible text]]` shows the text and follows the file.
+- **External link** `[text](https://…)` opens in the browser; in modern
+  terminals it's also directly clickable (OSC 8).
+
+---
+
+## Example
 
 ````markdown
 ---
-title: Заметка
-tags: демо
+title: Note
+tags: demo
 ---
 
-# Заголовок
+# Heading
 
-Текст с **акцентом** и ссылкой на [[Идеи]].
+Text with **emphasis** and a link to [[Ideas]].
 
-- [x] сделано
-- [ ] в планах
+- [x] done
+- [ ] planned
 
 ```python
 def hello(name):
-    return f"Привет, {name}!"
+    return f"Hello, {name}!"
 ```
 ````
 
 ---
 
-## English
-
-Zero-dependency, single-file terminal Markdown reader in pure Python:
-rich rendering, syntax-highlighted code blocks, instant single-key paging,
-full-text search, and numbered link navigation including Obsidian-style
-`[[wikilinks]]`. Run `python md.py <file.md>` or point it at a folder of notes.
-
----
-
-## Лицензия
+## License
 
 [MIT](LICENSE)
